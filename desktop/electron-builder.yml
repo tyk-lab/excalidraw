@@ -1,0 +1,28 @@
+appId: org.excalidraw.offline
+productName: Excalidraw Offline
+directories:
+  app: desktop
+  output: dist/windows
+files:
+  - "*.cjs"
+  - package.json
+extraResources:
+  - from: excalidraw-app/build
+    to: web
+    filter:
+      - "**/*"
+      - "!**/*.map"
+  - from: LICENSE
+    to: LICENSE.excalidraw.txt
+asar: true
+npmRebuild: false
+win:
+  target:
+    - target: portable
+      arch:
+        - x64
+  icon: public/android-chrome-512x512.png
+  signExecutable: false
+portable:
+  useZip: true
+  artifactName: Excalidraw-Offline-${version}-win-x64.exe

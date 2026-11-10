@@ -92,9 +92,12 @@
       }
     </style>
 
+    <% if (typeof VITE_APP_DESKTOP == 'undefined' || VITE_APP_DESKTOP != 'true')
+    { %>
     <!-- Warmup the connection for Google fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <% } %>
 
     <!------------------------------------------------------------------------->
     <% if (typeof PROD != 'undefined' && PROD == true) { %>
@@ -214,7 +217,8 @@
     </header>
     <div id="root"></div>
     <script type="module" src="index.tsx"></script>
-    <% if (typeof PROD != 'undefined' && PROD == true) { %>
+    <% if (typeof PROD != 'undefined' && PROD == true) { %> <% if (typeof
+    VITE_APP_DESKTOP == 'undefined' || VITE_APP_DESKTOP != 'true') { %>
     <!-- 100% privacy friendly analytics -->
     <script>
       // need to load this script dynamically bcs. of iframe embed tracking
@@ -247,6 +251,6 @@
       }
     </script>
     <!-- end LEGACY GOOGLE ANALYTICS -->
-    <% } %>
+    <% } %> <% } %>
   </body>
 </html>

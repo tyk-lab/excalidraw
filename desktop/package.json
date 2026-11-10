@@ -1,0 +1,8 @@
+{
+  "name": "excalidraw-offline",
+  "version": "1.0.0",
+  "description": "Excalidraw Windows offline desktop application",
+  "author": "Excalidraw contributors",
+  "license": "MIT",
+  "main": "main.cjs"
+}

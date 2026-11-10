@@ -18,7 +18,8 @@ export const AppFooter = React.memo(
           }}
         >
           {isVisualDebuggerEnabled() && <DebugFooter onChange={onChange} />}
-          {!isExcalidrawPlusSignedUser && <EncryptedIcon />}
+          {import.meta.env.VITE_APP_DESKTOP !== "true" &&
+            !isExcalidrawPlusSignedUser && <EncryptedIcon />}
         </div>
       </Footer>
     );

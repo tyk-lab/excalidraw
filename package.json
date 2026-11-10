@@ -22,6 +22,8 @@
     "@vitest/ui": "2.0.5",
     "chai": "4.3.6",
     "dotenv": "16.0.1",
+    "electron": "45.2.3",
+    "electron-builder": "26.18.0",
     "eslint-config-prettier": "8.5.0",
     "eslint-config-react-app": "7.0.1",
     "eslint-plugin-import": "2.31.0",
@@ -50,6 +52,9 @@
   "homepage": ".",
   "prettier": "@excalidraw/prettier-config",
   "scripts": {
+    "build:desktop": "node scripts/build-desktop.cjs",
+    "start:desktop": "electron desktop",
+    "test:desktop": "node scripts/test-desktop.cjs",
     "build-node": "node ./scripts/build-node.js",
     "build:app:docker": "yarn --cwd ./excalidraw-app build:app:docker",
     "build:app": "yarn --cwd ./excalidraw-app build:app",

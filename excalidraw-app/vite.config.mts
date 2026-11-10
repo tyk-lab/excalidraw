@@ -278,7 +278,7 @@ export default defineConfig(({ mode }) => {
         // its static in public folder
         generateRobotsTxt: false,
       }),
-      woff2BrowserPlugin(),
+      woff2BrowserPlugin({ offline: mode === "desktop" }),
       lazyChunksPlugin(
         /[\\/]node_modules[\\/]@excalidraw[\\/]mermaid-to-excalidraw[\\/]/,
         mermaidChunkFileNames,

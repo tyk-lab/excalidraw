@@ -376,7 +376,8 @@ const ExcalidrawWrapper = () => {
   const excalidrawAPI = useExcalidrawAPI();
 
   const [errorMessage, setErrorMessage] = useState("");
-  const isCollabDisabled = isRunningInIframe();
+  const isDesktop = import.meta.env.VITE_APP_DESKTOP === "true";
+  const isCollabDisabled = isDesktop || isRunningInIframe();
 
   const { editorTheme, appTheme, setAppTheme } = useHandleAppTheme();
 
@@ -481,6 +482,10 @@ const ExcalidrawWrapper = () => {
         return;
       }
 
+      if (data.scene.files) {
+        excalidrawAPI.addFiles(Object.values(data.scene.files));
+      }
+
       if (collabAPI?.isCollaborating()) {
         if (data.scene.elements) {
           collabAPI
@@ -532,9 +537,14 @@ const ExcalidrawWrapper = () => {
             ]);
           });
         } else if (isInitialLoad) {
-          if (fileIds.length) {
+          // Imported local documents already carry their image data. Looking these
+          // up in an empty draft database would incorrectly mark them as missing.
+          const storedFileIds = fileIds.filter(
+            (id) => !data.scene?.files?.[id],
+          );
+          if (storedFileIds.length) {
             LocalData.fileStorage
-              .getFiles(fileIds)
+              .getFiles(storedFileIds)
               .then(async ({ loadedFiles, erroredFiles }) => {
                 if (loadedFiles.length) {
                   excalidrawAPI.addFiles(loadedFiles);
@@ -910,7 +920,7 @@ const ExcalidrawWrapper = () => {
   const ExcalidrawPlusCommand = {
     label: "Excalidraw+",
     category: DEFAULT_CATEGORIES.links,
-    predicate: true,
+    predicate: !isDesktop,
     icon: <div style={{ width: 14 }}>{ExcalLogo}</div>,
     keywords: ["plus", "cloud", "server"],
     perform: () => {
@@ -925,7 +935,7 @@ const ExcalidrawWrapper = () => {
   const ExcalidrawPlusAppCommand = {
     label: "Sign up",
     category: DEFAULT_CATEGORIES.links,
-    predicate: true,
+    predicate: !isDesktop,
     icon: <div style={{ width: 14 }}>{ExcalLogo}</div>,
     keywords: [
       "excalidraw",
@@ -965,31 +975,32 @@ const ExcalidrawWrapper = () => {
           canvasActions: {
             toggleTheme: true,
             export: {
-              onExportToBackend,
-              renderCustomUI: excalidrawAPI
-                ? (elements, appState, files) => {
-                    return (
-                      <ExportToExcalidrawPlus
-                        elements={elements}
-                        appState={appState}
-                        files={files}
-                        name={excalidrawAPI.getName()}
-                        onError={(error) => {
-                          excalidrawAPI?.updateScene({
-                            appState: {
-                              errorMessage: error.message,
-                            },
-                          });
-                        }}
-                        onSuccess={() => {
-                          excalidrawAPI.updateScene({
-                            appState: { openDialog: null },
-                          });
-                        }}
-                      />
-                    );
-                  }
-                : undefined,
+              onExportToBackend: isDesktop ? undefined : onExportToBackend,
+              renderCustomUI:
+                !isDesktop && excalidrawAPI
+                  ? (elements, appState, files) => {
+                      return (
+                        <ExportToExcalidrawPlus
+                          elements={elements}
+                          appState={appState}
+                          files={files}
+                          name={excalidrawAPI.getName()}
+                          onError={(error) => {
+                            excalidrawAPI?.updateScene({
+                              appState: {
+                                errorMessage: error.message,
+                              },
+                            });
+                          }}
+                          onSuccess={() => {
+                            excalidrawAPI.updateScene({
+                              appState: { openDialog: null },
+                            });
+                          }}
+                        />
+                      );
+                    }
+                  : undefined,
             },
           },
         }}
@@ -1049,7 +1060,7 @@ const ExcalidrawWrapper = () => {
         <OverwriteConfirmDialog>
           <OverwriteConfirmDialog.Actions.ExportToImage />
           <OverwriteConfirmDialog.Actions.SaveToDisk />
-          {excalidrawAPI && (
+          {!isDesktop && excalidrawAPI && (
             <OverwriteConfirmDialog.Action
               title={t("overwriteConfirm.action.excalidrawPlus.title")}
               actionLabel={t("overwriteConfirm.action.excalidrawPlus.button")}
@@ -1067,9 +1078,11 @@ const ExcalidrawWrapper = () => {
           )}
         </OverwriteConfirmDialog>
         <AppFooter onChange={() => excalidrawAPI?.refresh()} />
-        {excalidrawAPI && <AIComponents excalidrawAPI={excalidrawAPI} />}
+        {!isDesktop && excalidrawAPI && (
+          <AIComponents excalidrawAPI={excalidrawAPI} />
+        )}
 
-        <TTDDialogTrigger />
+        {!isDesktop && <TTDDialogTrigger />}
         {isCollaborating && isOffline && (
           <div className="alertalert--warning">
             {t("alerts.collabOfflineWarning")}
@@ -1108,7 +1121,7 @@ const ExcalidrawWrapper = () => {
           }}
         />
 
-        <AppSidebar />
+        {!isDesktop && <AppSidebar />}
 
         {errorMessage && (
           <ErrorDialog onClose={() => setErrorMessage("")}>
@@ -1268,7 +1281,7 @@ const ExcalidrawWrapper = () => {
               label: t("overwriteConfirm.action.excalidrawPlus.button"),
               category: DEFAULT_CATEGORIES.export,
               icon: exportToPlus,
-              predicate: true,
+              predicate: !isDesktop,
               keywords: ["plus", "export", "save", "backup"],
               perform: () => {
                 if (excalidrawAPI) {
