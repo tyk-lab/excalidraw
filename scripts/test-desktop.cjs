@@ -101,7 +101,188 @@ async function waitForCount(page, count) {
   );
 }
 
-async function exercise(profile, filename) {
+async function waitForCondition(condition, description) {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    if (await condition()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`Timed out: ${description}`);
+}
+
+async function exerciseAttachments(
+  app,
+  page,
+  filename,
+  attachmentSource,
+  saveAsFilename,
+) {
+  await app.evaluate(({ dialog, shell }, source) => {
+    dialog.showOpenDialog = async () => ({
+      canceled: false,
+      filePaths: [source],
+    });
+    global.__openedAttachments = [];
+    shell.openPath = async (filename) => {
+      global.__openedAttachments.push(filename);
+      return "";
+    };
+  }, attachmentSource);
+  await page.getByTestId("main-menu-trigger").click();
+  await page.getByTestId("import-attachments-button").click();
+  await waitForCount(page, 8);
+  const attachmentElements = (await scene(page)).filter(
+    (element) => element.customData?.attachmentCard,
+  );
+  assert.equal(attachmentElements.length, 4);
+  assert.ok(
+    attachmentElements.some(
+      (element) => element.type === "freedraw" && element.points.length > 10,
+    ),
+    "attachment card includes a paperclip drawing",
+  );
+  const attachment = attachmentElements[0];
+  assert.ok(attachment, "attachment element must be created");
+  const relativePath = decodeURIComponent(
+    attachment.link.slice("attachment:".length),
+  );
+  assert.equal(path.isAbsolute(relativePath), false);
+  const copiedAttachment = path.resolve(path.dirname(filename), relativePath);
+  assert.equal(
+    await fs.readFile(copiedAttachment, "utf8"),
+    "# 附件标题\n\n离线附件内容。\n",
+  );
+  assert.equal(path.basename(path.dirname(copiedAttachment)), "attachments");
+  await page.screenshot({ path: path.join(output, "attachment-card.png") });
+
+  const formerLinkIconCenter = await page.evaluate(() => {
+    const elements = JSON.parse(localStorage.getItem("excalidraw") || "[]");
+    const rectangle = elements.find(
+      (element) =>
+        element.customData?.attachmentCard && element.type === "rectangle",
+    );
+    const appState = JSON.parse(
+      localStorage.getItem("excalidraw-state") || "{}",
+    );
+    const zoom = appState.zoom?.value || 1;
+    return {
+      x: (rectangle.x + rectangle.width + 8 + appState.scrollX) * zoom,
+      y: (rectangle.y - 8 + appState.scrollY) * zoom,
+    };
+  });
+  await page.mouse.click(1100, 750);
+  await page.mouse.click(formerLinkIconCenter.x, formerLinkIconCenter.y);
+  await page.waitForTimeout(200);
+  assert.equal(
+    (await app.evaluate(() => global.__openedAttachments)).length,
+    0,
+    "hidden link icons do not retain invisible click targets",
+  );
+
+  await page.mouse.dblclick(720, 480);
+  await waitForCondition(
+    async () =>
+      (await app.evaluate(() => global.__openedAttachments)).length === 1,
+    "double-click opens the copied attachment",
+  );
+  assert.deepEqual(await app.evaluate(() => global.__openedAttachments), [
+    copiedAttachment,
+  ]);
+  await assert.rejects(
+    page.evaluate(() =>
+      window.excalidrawDesktop.openAttachment("../outside.md"),
+    ),
+    /附件必须位于图纸的附件目录中/,
+  );
+
+  await fs.mkdir(path.dirname(saveAsFilename), { recursive: true });
+  await app.evaluate(({ dialog }, target) => {
+    dialog.showSaveDialog = async () => ({
+      canceled: false,
+      filePath: target,
+    });
+  }, saveAsFilename);
+  await page.getByTestId("main-menu-trigger").click();
+  await page.getByTestId("json-export-button").click();
+  await page.locator(".ExportDialog--json .Card-button").click();
+  await waitForCondition(
+    () =>
+      fs.access(saveAsFilename).then(
+        () => true,
+        () => false,
+      ),
+    "save as writes the new document",
+  );
+  const savedScene = JSON.parse(await fs.readFile(saveAsFilename, "utf8"));
+  assert.ok(
+    savedScene.elements.some((element) => element.link === attachment.link),
+    "save as preserves the relative attachment link",
+  );
+  const migratedAttachment = path.resolve(
+    path.dirname(saveAsFilename),
+    relativePath,
+  );
+  assert.equal(
+    await fs.readFile(migratedAttachment, "utf8"),
+    "# 附件标题\n\n离线附件内容。\n",
+  );
+  await page.mouse.dblclick(720, 480);
+  await waitForCondition(
+    async () =>
+      (await app.evaluate(() => global.__openedAttachments)).length === 2,
+    "double-click opens the migrated attachment",
+  );
+  assert.equal(
+    (await app.evaluate(() => global.__openedAttachments))[1],
+    migratedAttachment,
+  );
+
+  const sameDirectoryFilename = path.join(
+    path.dirname(saveAsFilename),
+    "同目录副本.excalidraw",
+  );
+  await app.evaluate(({ dialog }, target) => {
+    dialog.showSaveDialog = async () => ({
+      canceled: false,
+      filePath: target,
+    });
+  }, sameDirectoryFilename);
+  await page.getByTestId("main-menu-trigger").click();
+  await page.getByTestId("json-export-button").click();
+  await page.locator(".ExportDialog--json .Card-button").click();
+  await waitForCondition(
+    () =>
+      fs.access(sameDirectoryFilename).then(
+        () => true,
+        () => false,
+      ),
+    "same-directory save as writes the new document",
+  );
+  assert.equal(
+    await fs.readFile(migratedAttachment, "utf8"),
+    "# 附件标题\n\n离线附件内容。\n",
+    "same-directory save as leaves attachment contents intact",
+  );
+
+  await app.evaluate(({ dialog }, source) => {
+    dialog.showOpenDialog = async () => ({
+      canceled: false,
+      filePaths: [source],
+    });
+  }, filename);
+  await page.getByTestId("main-menu-trigger").click();
+  await page.getByTestId("load-button").click();
+  await page.locator(".OverwriteConfirm button").first().click();
+  await waitForCount(page, 3);
+  assert.equal(
+    await page.evaluate(() => window.excalidrawDesktop.getDocumentName()),
+    path.basename(filename),
+    "opening a document from the canvas menu updates its native path",
+  );
+}
+
+async function exercise(profile, filename, attachmentSource, saveAsFilename) {
   const app = await launch(profile, filename);
   const errors = [];
   try {
@@ -113,6 +294,14 @@ async function exercise(profile, filename) {
     }
     const page = await app.firstWindow();
     page.on("pageerror", (error) => errors.push(error.message));
+    page.on("console", (message) => {
+      if (
+        message.type() === "error" &&
+        !message.text().includes("https://example.com")
+      ) {
+        errors.push(message.text());
+      }
+    });
     await page.getByTestId("toolbar-rectangle").waitFor({ timeout: 15000 });
     await waitForCount(page, 3);
     assert.equal(
@@ -146,10 +335,20 @@ async function exercise(profile, filename) {
     await waitForCount(page, 3);
     await page.getByTestId("button-redo").click();
     await waitForCount(page, 4);
+    if (!fromPortable) {
+      await exerciseAttachments(
+        app,
+        page,
+        filename,
+        attachmentSource,
+        saveAsFilename,
+      );
+    }
     await page.screenshot({ path: path.join(output, "desktop.png") });
     assert.deepEqual(errors, []);
   } catch (error) {
     const page = await app.firstWindow();
+    console.error("Renderer errors:", errors);
     console.error("Scene at failure:", await scene(page));
     await page.screenshot({ path: path.join(output, "failure.png") });
     throw error;
@@ -162,7 +361,7 @@ async function checkRestart(profile) {
   const app = await launch(profile);
   try {
     const page = await app.firstWindow();
-    await waitForCount(page, 4);
+    await waitForCount(page, fromPortable ? 4 : 3);
     assert.equal(
       (await scene(page)).find((e) => e.type === "text").text,
       "离线重开 Offline 123",
@@ -174,6 +373,12 @@ async function checkRestart(profile) {
         .count(),
       0,
     );
+    if (!fromPortable) {
+      await page.getByTestId("import-attachments-button").click();
+      await page
+        .getByText("请先保存图纸，再导入附件", { exact: true })
+        .waitFor();
+    }
   } finally {
     await app.close();
   }
@@ -274,8 +479,11 @@ async function main() {
         },
       }),
     );
+    const attachmentSource = path.join(temporary, "说明.md");
+    const saveAsFilename = path.join(temporary, "副本", "迁移图纸.excalidraw");
+    await fs.writeFile(attachmentSource, "# 附件标题\n\n离线附件内容。\n");
     const profile = path.join(temporary, "profile");
-    await exercise(profile, filename);
+    await exercise(profile, filename, attachmentSource, saveAsFilename);
     await checkRestart(profile);
     const result = {
       passed: true,
@@ -293,6 +501,14 @@ async function main() {
         "network blocked",
         "draft restored after restart",
         "online menu hidden",
+        ...(!fromPortable
+          ? [
+              "relative attachment import and copy",
+              "double-click opens attachment",
+              "attachment path traversal blocked",
+              "save as migrates attachments",
+            ]
+          : []),
       ],
     };
     await fs.writeFile(

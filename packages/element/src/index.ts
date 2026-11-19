@@ -97,6 +97,8 @@ export * from "./sizeHelpers";
 export * from "./sortElements";
 export * from "./store";
 export * from "./stickyNote";
+export * from "./table";
+export * from "./markdownTable";
 export * from "./textElement";
 export * from "./textMeasurements";
 export * from "./textWrapping";

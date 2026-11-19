@@ -12,7 +12,7 @@ import type { MaybePromise } from "@excalidraw/common/utility-types";
 import { cleanAppStateForExport, clearAppStateForDatabase } from "../appState";
 
 import { isImageFileHandle, loadFromBlob } from "./blob";
-import { fileOpen, fileSave } from "./filesystem";
+import { createDesktopFileHandle, fileOpen, fileSave } from "./filesystem";
 
 import type { AppState, BinaryFiles, LibraryItems } from "../types";
 import type {
@@ -103,6 +103,22 @@ export const loadFromJSON = async (
   localAppState: AppState,
   localElements: readonly ExcalidrawElement[] | null,
 ) => {
+  if (window.excalidrawDesktop) {
+    const result = await window.excalidrawDesktop.openExcalidraw();
+    if (!result) {
+      const error = new Error("Open canceled");
+      error.name = "AbortError";
+      throw error;
+    }
+    const data = await loadFromBlob(
+      new Blob([result.data], { type: MIME_TYPES.excalidraw }),
+      localAppState,
+      localElements,
+      createDesktopFileHandle(result.name),
+    );
+    await window.excalidrawDesktop.activateDocument(result.token);
+    return data;
+  }
   const file = await fileOpen({
     description: "Excalidraw files",
     // ToDo: Be over-permissive until https://bugs.webkit.org/show_bug.cgi?id=34442

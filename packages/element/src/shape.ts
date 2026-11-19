@@ -31,6 +31,8 @@ import {
 
 import { RoughGenerator } from "roughjs/bin/generator";
 
+import { getTableTracks } from "./table";
+
 import type { GlobalPoint, Polygon } from "@excalidraw/math";
 
 import type { Mutable } from "@excalidraw/common/utility-types";
@@ -231,6 +233,7 @@ export const generateRoughOptions = (
 
   switch (element.type) {
     case "rectangle":
+    case "table":
     case "iframe":
     case "embeddable":
     case "diamond":
@@ -843,6 +846,38 @@ const _generateElementShape = (
 ): ElementShape => {
   const isDarkMode = theme === THEME.DARK;
   switch (element.type) {
+    case "table": {
+      const shapes: ElementShapes["table"] = [];
+      const options = generateRoughOptions(element, false, isDarkMode);
+      if (!isTransparent(element.backgroundColor)) {
+        shapes.push(
+          generator.rectangle(0, 0, element.width, element.height, {
+            ...options,
+            stroke: "none",
+          }),
+        );
+      }
+      const strokeOptions = { ...options, fill: undefined };
+      const xs = getTableTracks(element.colFractions, element.width);
+      const ys = getTableTracks(element.rowFractions, element.height);
+      ys.forEach((y, index) => {
+        shapes.push(
+          generator.line(0, y, element.width, y, {
+            ...strokeOptions,
+            seed: element.seed + index + 1,
+          }),
+        );
+      });
+      xs.forEach((x, index) => {
+        shapes.push(
+          generator.line(x, 0, x, element.height, {
+            ...strokeOptions,
+            seed: element.seed + ys.length + index + 1,
+          }),
+        );
+      });
+      return shapes;
+    }
     case "rectangle":
     case "iframe":
     case "embeddable": {
@@ -1170,6 +1205,7 @@ export const getElementShape = <Point extends GlobalPoint | LocalPoint>(
   switch (element.type) {
     case "rectangle":
     case "stickynote":
+    case "table":
     case "diamond":
     case "frame":
     case "magicframe":

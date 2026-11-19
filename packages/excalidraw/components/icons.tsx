@@ -1987,6 +1987,18 @@ export const frameToolIcon = createIcon(
   tablerIconProps,
 );
 
+export const tableToolIcon = createIcon(
+  <g strokeWidth={1.5}>
+    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+    <path d="M4 5h16v14h-16z"></path>
+    <path d="M4 9.5h16"></path>
+    <path d="M4 14.5h16"></path>
+    <path d="M9.5 5v14"></path>
+    <path d="M14.5 5v14"></path>
+  </g>,
+  tablerIconProps,
+);
+
 export const stickyNoteToolIcon = createIcon(
   <g strokeWidth={1.5}>
     <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>

@@ -46,7 +46,13 @@ export const fileOpen = async <M extends boolean | undefined = false>(opts: {
   return (await normalizeFile(files)) as RetType;
 };
 
-export const fileSave = (
+export const createDesktopFileHandle = (name: string) =>
+  ({
+    name,
+    __excalidrawDesktop: true,
+  } as unknown as FileSystemFileHandle);
+
+export const fileSave = async (
   blob: Blob | Promise<Blob>,
   opts: {
     /** supply without the extension */
@@ -59,6 +65,20 @@ export const fileSave = (
     fileHandle?: FileSystemFileHandle | null;
   },
 ) => {
+  if (opts.extension === "excalidraw" && window.excalidrawDesktop) {
+    const data = await (await blob).arrayBuffer();
+    const result = await window.excalidrawDesktop.saveExcalidraw(
+      data,
+      opts.name,
+      !opts.fileHandle || !(opts.fileHandle as any).__excalidrawDesktop,
+    );
+    if (!result) {
+      const error = new Error("Save canceled");
+      error.name = "AbortError";
+      throw error;
+    }
+    return createDesktopFileHandle(result.name);
+  }
   return _fileSave(
     blob,
     {

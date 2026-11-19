@@ -94,6 +94,8 @@ import type {
   ElementsMap,
 } from "./types";
 
+import { drawTableText } from "./table";
+
 import type { RoughCanvas } from "roughjs/bin/canvas";
 
 const isPendingImageElement = (
@@ -496,6 +498,21 @@ const drawElementOnCanvas = (
           context.fillText(footer.text, footer.x, footer.y);
         }
       });
+      break;
+    }
+    case "table": {
+      context.lineJoin = "round";
+      context.lineCap = "round";
+      const shapes = ShapeCache.generateElementShape(element, renderConfig);
+      for (const shape of shapes) {
+        rc.draw(shape);
+      }
+      drawTableText(
+        element,
+        context,
+        renderConfig.theme,
+        getRenderEnvironment(renderConfig.renderEnvironment),
+      );
       break;
     }
     case "rectangle":
@@ -1156,6 +1173,7 @@ const drawElement = (
     }
     case "rectangle":
     case "stickynote":
+    case "table":
     case "diamond":
     case "ellipse":
     case "line":

@@ -21,7 +21,10 @@ import {
   maybeParseEmbedSrc,
   measureText,
   newElementWith,
+  newTableElement,
   newTextElement,
+  parseMarkdownTable,
+  layoutMarkdownTable,
   normalizeText,
   wrapText,
 } from "@excalidraw/element";
@@ -138,6 +141,13 @@ export class AppClipboard {
         sceneX,
         sceneY,
       });
+      return;
+    }
+
+    // ------------------- Markdown table -------------------
+    // Before the spreadsheet dialog: a Markdown grid is a drawing, not a chart.
+    if (!isPlainPaste && data.text && parseMarkdownTable(data.text)) {
+      this.addMarkdownTable(data.text, sceneX, sceneY);
       return;
     }
 
@@ -428,6 +438,56 @@ export class AppClipboard {
         );
       }
     }
+  }
+
+  private addMarkdownTable(text: string, sceneX: number, sceneY: number) {
+    const cells = parseMarkdownTable(text);
+    if (!cells) {
+      return;
+    }
+    const { state } = this.app;
+    const fontSize = state.currentItemFontSize;
+    const fontFamily = state.currentItemFontFamily;
+    const layout = layoutMarkdownTable(
+      cells,
+      fontSize,
+      fontFamily,
+      this.app.renderEnvironment,
+    );
+    const topLayerFrame = this.app.getTopLayerFrameAtSceneCoords({
+      x: sceneX,
+      y: sceneY,
+    });
+    const table = newTableElement({
+      type: "table",
+      x: sceneX - layout.width / 2,
+      y: sceneY - layout.height / 2,
+      width: layout.width,
+      height: layout.height,
+      cells,
+      colFractions: layout.colFractions,
+      rowFractions: layout.rowFractions,
+      fontSize,
+      fontFamily,
+      strokeColor: state.currentItemStrokeColor,
+      backgroundColor: state.currentItemBackgroundColor,
+      fillStyle: state.currentItemFillStyle,
+      strokeWidth: this.app.getCurrentItemStrokeWidth("table"),
+      strokeStyle: state.currentItemStrokeStyle,
+      roughness: state.currentItemRoughness,
+      opacity: state.currentItemOpacity,
+      roundness: null,
+      locked: false,
+      frameId: topLayerFrame ? topLayerFrame.id : null,
+    });
+    this.app.insertNewElements([table]);
+    this.app.store.scheduleCapture();
+    this.app.setState({
+      selectedElementIds: makeNextSelectedElementIds(
+        { [table.id]: true },
+        this.app.state,
+      ),
+    });
   }
 
   private addTextFromPaste(text: string, isPlainPaste = false) {

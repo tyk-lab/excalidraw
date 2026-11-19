@@ -23,6 +23,7 @@ import {
   newLinearElement,
   newMagicFrameElement,
   newStickyNoteElement,
+  newTableElement,
   newTextElement,
 } from "@excalidraw/element";
 
@@ -45,6 +46,7 @@ import type {
   ExcalidrawElbowArrowElement,
   ExcalidrawArrowElement,
   ExcalidrawStickyNoteElement,
+  ExcalidrawTableElement,
   FixedSegment,
   NonDeleted,
   NonDeletedExcalidrawElement,
@@ -201,8 +203,19 @@ export class API {
     opacity?: ExcalidrawGenericElement["opacity"];
     // text props
     text?: T extends "text" ? ExcalidrawTextElement["text"] : never;
-    fontSize?: T extends "text" ? ExcalidrawTextElement["fontSize"] : never;
-    fontFamily?: T extends "text" ? ExcalidrawTextElement["fontFamily"] : never;
+    fontSize?: T extends "text" | "table"
+      ? ExcalidrawTextElement["fontSize"]
+      : never;
+    fontFamily?: T extends "text" | "table"
+      ? ExcalidrawTextElement["fontFamily"]
+      : never;
+    cells?: T extends "table" ? ExcalidrawTableElement["cells"] : never;
+    colFractions?: T extends "table"
+      ? ExcalidrawTableElement["colFractions"]
+      : never;
+    rowFractions?: T extends "table"
+      ? ExcalidrawTableElement["rowFractions"]
+      : never;
     textAlign?: T extends "text" ? ExcalidrawTextElement["textAlign"] : never;
     verticalAlign?: T extends "text"
       ? ExcalidrawTextElement["verticalAlign"]
@@ -328,6 +341,19 @@ export class API {
         element = newIframeElement({
           type: "iframe",
           ...base,
+        });
+        break;
+      case "table":
+        element = newTableElement({
+          ...base,
+          width,
+          height,
+          type,
+          fontSize: rest.fontSize,
+          fontFamily: rest.fontFamily,
+          cells: rest.cells,
+          colFractions: rest.colFractions,
+          rowFractions: rest.rowFractions,
         });
         break;
       case "stickynote":

@@ -35,6 +35,7 @@ import {
 import polyfill from "@excalidraw/excalidraw/polyfill";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { loadFromBlob } from "@excalidraw/excalidraw/data/blob";
+import { createDesktopFileHandle } from "@excalidraw/excalidraw/data/filesystem";
 import { t } from "@excalidraw/excalidraw/i18n";
 
 import {
@@ -148,6 +149,11 @@ import "./index.scss";
 
 import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanner";
 import { AppSidebar } from "./components/AppSidebar";
+import {
+  ATTACHMENT_PROTOCOL,
+  createAttachmentElements,
+  getAttachmentPath,
+} from "./attachments";
 
 import type { CollabAPI } from "./collab/Collab";
 
@@ -308,6 +314,10 @@ const initializeScene = async (opts: {
     try {
       const request = await fetch(window.decodeURIComponent(url));
       const data = await loadFromBlob(await request.blob(), null, null);
+      const documentName = window.excalidrawDesktop?.getDocumentName();
+      if (documentName) {
+        data.appState.fileHandle = createDesktopFileHandle(documentName);
+      }
       if (
         !scene.elements.length ||
         (await openConfirmModal(shareableLinkConfirmDialog))
@@ -818,6 +828,52 @@ const ExcalidrawWrapper = () => {
     }
   };
 
+  const importAttachments = async () => {
+    if (!excalidrawAPI || !window.excalidrawDesktop) {
+      return;
+    }
+    try {
+      const attachments = await window.excalidrawDesktop.importAttachments();
+      if (!attachments.length) {
+        return;
+      }
+      const appState = excalidrawAPI.getAppState();
+      const centerX =
+        -appState.scrollX + appState.width / (2 * appState.zoom.value);
+      const centerY =
+        -appState.scrollY + appState.height / (2 * appState.zoom.value);
+      const elements = attachments.flatMap((attachment, index) =>
+        createAttachmentElements({
+          ...attachment,
+          x: centerX - 140,
+          y: centerY - 38 + index * 92,
+        }),
+      );
+      excalidrawAPI.updateScene({
+        elements: [...excalidrawAPI.getSceneElements(), ...elements],
+        appState: {
+          selectedElementIds: Object.fromEntries(
+            elements.map((element) => [element.id, true]),
+          ),
+        },
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+      excalidrawAPI.setToast({
+        message: `已导入 ${attachments.length} 个附件，双击即可打开`,
+      });
+    } catch (error: any) {
+      const unsaved = error.message?.includes("UNSAVED_DOCUMENT");
+      if (!unsaved) {
+        console.error(error);
+      }
+      excalidrawAPI.setToast({
+        message: unsaved
+          ? "请先保存图纸，再导入附件"
+          : `导入附件失败：${error.message}`,
+      });
+    }
+  };
+
   const renderCustomStats = (
     elements: readonly NonDeletedExcalidrawElement[],
     appState: UIAppState,
@@ -1036,6 +1092,25 @@ const ExcalidrawWrapper = () => {
           );
         }}
         onLinkOpen={(element, event) => {
+          if (element.link?.startsWith(ATTACHMENT_PROTOCOL)) {
+            event.preventDefault();
+            if (!window.excalidrawDesktop) {
+              return;
+            }
+            const link = element.link;
+            Promise.resolve()
+              .then(() =>
+                window.excalidrawDesktop!.openAttachment(
+                  getAttachmentPath(link),
+                ),
+              )
+              .catch((error) => {
+                excalidrawAPI?.setToast({
+                  message: `无法打开附件：${error.message}`,
+                });
+              });
+            return;
+          }
           if (element.link && isElementLink(element.link)) {
             event.preventDefault();
             excalidrawAPI?.setViewport({
@@ -1052,6 +1127,7 @@ const ExcalidrawWrapper = () => {
           isCollabEnabled={isCollabAvailable}
           theme={appTheme}
           refresh={() => forceRefresh((prev) => !prev)}
+          onImportAttachments={importAttachments}
         />
         <AppWelcomeScreen
           onCollabDialogOpen={onCollabDialogOpen}

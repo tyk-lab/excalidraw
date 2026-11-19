@@ -186,7 +186,11 @@ export const isPointHittingLink = (
   [x, y]: GlobalPoint,
   isMobile: boolean,
 ) => {
-  if (!element.link || appState.selectedElementIds[element.id]) {
+  if (
+    !element.link ||
+    element.customData?.attachmentCard ||
+    appState.selectedElementIds[element.id]
+  ) {
     return false;
   }
   if (

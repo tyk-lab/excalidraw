@@ -2,6 +2,7 @@ import {
   loginIcon,
   ExcalLogo,
   eyeIcon,
+  LinkIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import { useI18n } from "@excalidraw/excalidraw/i18n";
 import { MainMenu } from "@excalidraw/excalidraw/index";
@@ -22,12 +23,22 @@ export const AppMainMenu: React.FC<{
   isCollabEnabled: boolean;
   theme: Theme | "system";
   refresh: () => void;
+  onImportAttachments: () => void;
 }> = React.memo((props) => {
   const { t } = useI18n();
   return (
     <MainMenu>
       <MainMenu.DefaultItems.LoadScene />
       <MainMenu.DefaultItems.SaveToActiveFile />
+      {import.meta.env.VITE_APP_DESKTOP === "true" && (
+        <MainMenu.Item
+          icon={LinkIcon}
+          onSelect={props.onImportAttachments}
+          data-testid="import-attachments-button"
+        >
+          导入附件
+        </MainMenu.Item>
+      )}
       <MainMenu.DefaultItems.Export />
       <MainMenu.DefaultItems.SaveAsImage />
       {props.isCollabEnabled && (

@@ -55,6 +55,7 @@ import {
   getStickyNoteLayout,
   isStickyNoteBoundText,
   normalizeStickyNote,
+  normalizeTableElement,
   normalizeStickyNoteBackgroundColor,
   normalizeStickyNoteFontSize,
   normalizeStickyNoteStrokeColor,
@@ -232,6 +233,7 @@ export const AllowedExcalidrawActiveTools: Record<
   arrow: true,
   freedraw: true,
   stickynote: true,
+  table: true,
   eraser: false,
   custom: true,
   frame: true,
@@ -743,6 +745,17 @@ export const restoreElement = (
     case "iframe":
     case "embeddable":
       return restoreElementWithProperties(element, {});
+    case "table":
+      return normalizeTableElement(
+        restoreElementWithProperties(element, {
+          cells: element.cells,
+          colFractions: element.colFractions,
+          rowFractions: element.rowFractions,
+          fontSize: element.fontSize,
+          fontFamily: element.fontFamily,
+        }),
+        { enforceMinSize: true },
+      );
     case "stickynote":
       return normalizeStickyNote(
         restoreElementWithProperties(element, {

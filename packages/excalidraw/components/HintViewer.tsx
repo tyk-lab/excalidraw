@@ -11,6 +11,7 @@ import {
   isLinearElement,
   isLineElement,
   isStickyNoteElement,
+  isTableElement,
   isTextBindableContainer,
   isTextElement,
 } from "@excalidraw/element";
@@ -114,6 +115,10 @@ const getHints = ({
     return t("hints.stickynote");
   }
 
+  if (activeTool.type === "table") {
+    return t("hints.table");
+  }
+
   if (activeTool.type === "autoshape") {
     return t("hints.autoshape");
   }
@@ -172,6 +177,10 @@ const getHints = ({
     return t("hints.cycleSelection", {
       shortcut: getTaggedShortcutKey("Alt"),
     });
+  }
+
+  if (selectedElements.length === 1 && isTableElement(selectedElements[0])) {
+    return t("hints.table_selected");
   }
 
   if (selectedElements.length === 1 && isTextElement(selectedElements[0])) {

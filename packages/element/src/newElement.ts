@@ -58,7 +58,16 @@ import type {
   ExcalidrawElbowArrowElement,
   ExcalidrawLineElement,
   ExcalidrawStickyNoteElement,
+  ExcalidrawTableElement,
 } from "./types";
+
+import {
+  DEFAULT_TABLE_COLS,
+  DEFAULT_TABLE_ROWS,
+  createEmptyCells,
+  equalFractions,
+  normalizeTableElement,
+} from "./table";
 
 export type ElementConstructorOpts = MarkOptional<
   Omit<ExcalidrawGenericElement, "id" | "type" | "isDeleted" | "updated">,
@@ -241,6 +250,45 @@ export const newStickyNoteElement = (
   return normalizeStickyNoteStyle({
     ...base,
     baseHeight: opts.baseHeight ?? base.height,
+  });
+};
+
+export const newTableElement = (
+  opts: {
+    type: "table";
+    rows?: number;
+    cols?: number;
+    cells?: readonly (readonly string[])[];
+    colFractions?: readonly number[];
+    rowFractions?: readonly number[];
+    fontSize?: number;
+    fontFamily?: FontFamilyValues;
+  } & ElementConstructorOpts,
+): NonDeleted<ExcalidrawTableElement> => {
+  const rows =
+    opts.cells?.length ||
+    opts.rowFractions?.length ||
+    opts.rows ||
+    DEFAULT_TABLE_ROWS;
+  const cols =
+    opts.cells?.[0]?.length ||
+    opts.colFractions?.length ||
+    opts.cols ||
+    DEFAULT_TABLE_COLS;
+  const base = _newElementBase<ExcalidrawTableElement>("table", {
+    ...opts,
+    roundness: null,
+  });
+
+  // no minimum size here: a drag preview starts at 0×0
+  return normalizeTableElement({
+    ...base,
+    roundness: null,
+    cells: opts.cells ?? createEmptyCells(rows, cols),
+    colFractions: opts.colFractions ?? equalFractions(cols),
+    rowFractions: opts.rowFractions ?? equalFractions(rows),
+    fontSize: opts.fontSize ?? DEFAULT_FONT_SIZE,
+    fontFamily: opts.fontFamily ?? DEFAULT_FONT_FAMILY,
   });
 };
 

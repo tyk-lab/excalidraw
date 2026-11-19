@@ -8,6 +8,22 @@ interface Window {
   gtag: Function;
   sa_event: Function;
   fathom: { trackEvent: Function };
+  excalidrawDesktop?: {
+    getDocumentName(): string | null;
+    openExcalidraw(): Promise<{
+      data: ArrayBuffer;
+      name: string;
+      token: string;
+    } | null>;
+    activateDocument(token: string): Promise<void>;
+    saveExcalidraw(
+      data: ArrayBuffer,
+      name: string,
+      saveAs: boolean,
+    ): Promise<{ name: string } | null>;
+    importAttachments(): Promise<{ name: string; relativePath: string }[]>;
+    openAttachment(relativePath: string): Promise<void>;
+  };
 }
 
 interface CanvasRenderingContext2D {

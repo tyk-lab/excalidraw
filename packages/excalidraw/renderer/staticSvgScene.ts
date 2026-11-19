@@ -38,6 +38,7 @@ import { getContainingFrame, isFrameClippable } from "@excalidraw/element";
 import { getCornerRadius, isPathALoop } from "@excalidraw/element";
 
 import { ShapeCache } from "@excalidraw/element";
+import { getTableCellTextLayouts } from "@excalidraw/element";
 import {
   getStickyNoteFooter,
   getStickyNotePathCommands,
@@ -270,6 +271,67 @@ const renderElementToSvg = (
       );
 
       addToRoot(g || group, element);
+      break;
+    }
+    case "table": {
+      const group = svgRoot.ownerDocument.createElementNS(SVG_NS, "g");
+      group.setAttribute(
+        "transform",
+        `translate(${offsetX || 0} ${offsetY || 0}) rotate(${degree} ${cx} ${cy})`,
+      );
+      if (opacity !== 1) {
+        group.setAttribute("opacity", `${opacity}`);
+      }
+      const shapes = ShapeCache.generateElementShape(element, renderConfig);
+      for (const shape of shapes) {
+        const node = roughSVGDrawWithPrecision(
+          rsvg,
+          shape,
+          MAX_DECIMALS_FOR_SVG_EXPORT,
+        );
+        node.setAttribute("stroke-linecap", "round");
+        group.appendChild(node);
+      }
+
+      const fill = applyDarkModeFilter(
+        element.strokeColor,
+        renderConfig.theme === THEME.DARK,
+      );
+      const fontFamily = getFontFamilyString({
+        fontFamily: element.fontFamily,
+      });
+      for (const cell of getTableCellTextLayouts(
+        element,
+        renderConfig.renderEnvironment,
+      )) {
+        if (cell.lines.length === 0) {
+          continue;
+        }
+        const text = svgRoot.ownerDocument.createElementNS(SVG_NS, "text");
+        text.setAttribute("x", `${cell.x + cell.padding}`);
+        text.setAttribute("y", `${cell.y + cell.padding}`);
+        text.setAttribute("font-family", fontFamily);
+        text.setAttribute("font-size", `${element.fontSize}px`);
+        text.setAttribute("fill", fill);
+        text.setAttribute("dominant-baseline", "text-before-edge");
+        cell.lines.forEach((line, index) => {
+          const span = svgRoot.ownerDocument.createElementNS(SVG_NS, "tspan");
+          span.setAttribute("x", `${cell.x + cell.padding}`);
+          span.setAttribute("dy", index === 0 ? "0" : `${cell.lineHeightPx}`);
+          span.textContent = line;
+          text.appendChild(span);
+        });
+        group.appendChild(text);
+      }
+
+      const wrapped = maybeWrapNodesInFrameClipPath(
+        element,
+        root,
+        [group],
+        renderConfig.frameRendering,
+        elementsMap,
+      );
+      addToRoot(wrapped || group, element);
       break;
     }
     case "rectangle":

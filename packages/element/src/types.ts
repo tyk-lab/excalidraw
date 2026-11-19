@@ -104,6 +104,19 @@ export type ExcalidrawStickyNoteElement = _ExcalidrawElementBase &
     baseHeight: number;
   }>;
 
+export type ExcalidrawTableElement = _ExcalidrawElementBase &
+  Readonly<{
+    type: "table";
+    /** Row-major cell text. `cells.length` matches `rowFractions`. */
+    cells: readonly (readonly string[])[];
+    /** Column widths as fractions of `width`. Sums to 1. */
+    colFractions: readonly number[];
+    /** Row heights as fractions of `height`. Sums to 1. */
+    rowFractions: readonly number[];
+    fontSize: number;
+    fontFamily: FontFamilyValues;
+  }>;
+
 export type ExcalidrawDiamondElement = _ExcalidrawElementBase & {
   type: "diamond";
 };
@@ -207,6 +220,7 @@ export type ExcalidrawFlowchartNodeElement =
 export type ExcalidrawRectanguloidElement =
   | ExcalidrawRectangleElement
   | ExcalidrawStickyNoteElement
+  | ExcalidrawTableElement
   | ExcalidrawImageElement
   | ExcalidrawTextElement
   | ExcalidrawFreeDrawElement
@@ -223,6 +237,7 @@ export type ExcalidrawRectanguloidElement =
 export type ExcalidrawElement =
   | ExcalidrawGenericElement
   | ExcalidrawStickyNoteElement
+  | ExcalidrawTableElement
   | ExcalidrawTextElement
   | ExcalidrawLinearElement
   | ExcalidrawArrowElement
@@ -293,6 +308,7 @@ export type ExcalidrawTextElement = _ExcalidrawElementBase &
 export type ExcalidrawBindableElement =
   | ExcalidrawRectangleElement
   | ExcalidrawStickyNoteElement
+  | ExcalidrawTableElement
   | ExcalidrawDiamondElement
   | ExcalidrawEllipseElement
   | ExcalidrawTextElement

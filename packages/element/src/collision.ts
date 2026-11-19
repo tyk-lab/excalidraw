@@ -88,6 +88,11 @@ export const shouldTestInside = (element: ExcalidrawElement) => {
   if (element.type === "arrow") {
     return false;
   }
+  // A table is a grid of cells. The interior must be clickable even when the
+  // fill is transparent, otherwise only the strokes can be selected.
+  if (element.type === "table") {
+    return true;
+  }
 
   const isDraggableFromInside =
     (hasBackground(element.type) && !isTransparent(element.backgroundColor)) ||
@@ -540,6 +545,7 @@ export const intersectElementWithLineSegment = (
   switch (element.type) {
     case "rectangle":
     case "stickynote":
+    case "table":
     case "image":
     case "text":
     case "iframe":

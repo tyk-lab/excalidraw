@@ -165,6 +165,7 @@ export type ToolType =
   | "frame"
   | "magicframe"
   | "stickynote"
+  | "table"
   | "embeddable"
   | "laser"
   | "autoshape"

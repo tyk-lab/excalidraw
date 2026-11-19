@@ -111,6 +111,7 @@ import {
   newEmbeddableElement,
   newMagicFrameElement,
   newStickyNoteElement,
+  newTableElement,
   newIframeElement,
   newArrowElement,
   newElement,
@@ -138,6 +139,14 @@ import {
   isBindableElement,
   isTextElement,
   isStickyNoteElement,
+  isTableElement,
+  getTableCellAtScenePoint,
+  DEFAULT_TABLE_COL_WIDTH,
+  DEFAULT_TABLE_COLS,
+  DEFAULT_TABLE_ROW_HEIGHT,
+  DEFAULT_TABLE_ROWS,
+  TABLE_MIN_COL_WIDTH,
+  TABLE_MIN_ROW_HEIGHT,
   getNormalizedDimensions,
   isElementCompletelyInViewport,
   isElementInViewport,
@@ -282,6 +291,10 @@ import {
   actionToggleArrowBinding,
   actionToggleMidpointSnapping,
   actionToggleCropEditor,
+  actionTableInsertRow,
+  actionTableInsertColumn,
+  actionTableDeleteRow,
+  actionTableDeleteColumn,
 } from "../actions";
 import { actionWrapTextInContainer } from "../actions/actionBoundText";
 import { actionPaste } from "../actions/actionClipboard";
@@ -404,6 +417,7 @@ import {
 import { AppSelectionTool } from "./App.selectionTool";
 import { AppWrap } from "./App.wrap";
 import BraveMeasureTextError from "./BraveMeasureTextError";
+import { TableCellEditor } from "./TableCellEditor";
 import { ContextMenu, CONTEXT_MENU_SEPARATOR } from "./ContextMenu";
 import { activeEyeDropperAtom } from "./EyeDropper";
 import { FileDropOverlay } from "./FileDropOverlay";
@@ -693,6 +707,7 @@ class App extends React.Component<AppProps, AppState> {
   public clipboard: AppClipboard = new AppClipboard(this, {
     getContainer: () => this.excalidrawContainerRef.current,
   });
+  public tableCellEditor = new TableCellEditor(this);
   public text: AppText = new AppText(this, {
     getContainer: () => this.excalidrawContainerRef.current,
     getStylesPanelMode: () => this.stylesPanelMode,
@@ -3907,6 +3922,7 @@ class App extends React.Component<AppProps, AppState> {
   }
 
   public componentWillUnmount() {
+    this.tableCellEditor.close({ capture: false });
     // we're recreating the api object reference so that the
     // <ExcalidrawAPIContext.Provider/> picks up on it
     this.api = { ...this.api, isDestroyed: true };
@@ -5506,6 +5522,10 @@ class App extends React.Component<AppProps, AppState> {
                 }
               }
             }
+          } else if (isTableElement(selectedElement) && !selectedElement.locked) {
+            this.tableCellEditor.open(selectedElement, 0, 0);
+            event.preventDefault();
+            return;
           } else if (
             isTextElement(selectedElement) ||
             isValidTextContainer(selectedElement)
@@ -6217,7 +6237,9 @@ class App extends React.Component<AppProps, AppState> {
       | "ctrlKey"
       | "metaKey"
       | "shiftKey"
-    >,
+    > & {
+      nativeEvent?: React.MouseEvent<HTMLCanvasElement>["nativeEvent"];
+    },
   ) => {
     if (
       !this.isInteractionEnabled() ||
@@ -6258,6 +6280,24 @@ class App extends React.Component<AppProps, AppState> {
       event,
       this.state,
     );
+
+    const attachmentElement = this.getElementAtPosition(sceneX, sceneY, {
+      includeBoundTextElement: true,
+    });
+    if (
+      attachmentElement?.link?.startsWith("attachment:") &&
+      this.props.onLinkOpen
+    ) {
+      const customEvent = wrapEvent(
+        EVENT.EXCALIDRAW_LINK,
+        event.nativeEvent ||
+          new this.ownerWindow.MouseEvent(EVENT.EXCALIDRAW_LINK),
+      );
+      this.props.onLinkOpen(attachmentElement, customEvent);
+      if (customEvent.defaultPrevented) {
+        return;
+      }
+    }
 
     if (selectedElements.length === 1 && isLinearElement(selectedElements[0])) {
       const selectedLinearElement: ExcalidrawLinearElement =
@@ -6391,6 +6431,14 @@ class App extends React.Component<AppProps, AppState> {
     this.cursor.reset();
     if (!this.state.viewModeEnabled) {
       const hitElement = this.getElementAtPosition(sceneX, sceneY);
+
+      if (isTableElement(hitElement) && !hitElement.locked) {
+        const cell = getTableCellAtScenePoint(hitElement, sceneX, sceneY);
+        if (cell) {
+          this.tableCellEditor.open(hitElement, cell.row, cell.col);
+          return;
+        }
+      }
 
       if (isIframeLikeElement(hitElement)) {
         if (this.isIframeLikeInteractive(hitElement)) {
@@ -8817,7 +8865,11 @@ class App extends React.Component<AppProps, AppState> {
   }
 
   private createGenericElementOnPointerDown = (
-    elementType: ExcalidrawGenericElement["type"] | "embeddable" | "stickynote",
+    elementType:
+      | ExcalidrawGenericElement["type"]
+      | "embeddable"
+      | "stickynote"
+      | "table",
     pointerDownState: PointerDownState,
   ): void => {
     const [gridX, gridY] = getGridPoint(
@@ -8849,7 +8901,10 @@ class App extends React.Component<AppProps, AppState> {
       strokeStyle: this.state.currentItemStrokeStyle,
       roughness: this.state.currentItemRoughness,
       opacity: this.state.currentItemOpacity,
-      roundness: this.getCurrentItemRoundness(elementType),
+      roundness:
+        elementType === "table"
+          ? null
+          : this.getCurrentItemRoundness(elementType),
       locked: false,
       frameId: topLayerFrame ? topLayerFrame.id : null,
     } as const;
@@ -8864,6 +8919,13 @@ class App extends React.Component<AppProps, AppState> {
       element = newStickyNoteElement({
         type: "stickynote",
         ...baseElementAttributes,
+      });
+    } else if (elementType === "table") {
+      element = newTableElement({
+        type: "table",
+        ...baseElementAttributes,
+        fontSize: this.state.currentItemFontSize,
+        fontFamily: this.state.currentItemFontFamily,
       });
     } else {
       element = newElement({
@@ -9955,6 +10017,81 @@ class App extends React.Component<AppProps, AppState> {
         return;
       }
 
+      if (newElement && isTableElement(newElement)) {
+        const zoom = this.state.zoom.value;
+        const isClick =
+          newElement.width * zoom < DRAGGING_THRESHOLD &&
+          newElement.height * zoom < DRAGGING_THRESHOLD;
+        const columnCount =
+          newElement.colFractions.length || DEFAULT_TABLE_COLS;
+        const rowCount = newElement.rowFractions.length || DEFAULT_TABLE_ROWS;
+        let nextGeometry;
+        if (isClick) {
+          const width = DEFAULT_TABLE_COL_WIDTH * columnCount;
+          const height = DEFAULT_TABLE_ROW_HEIGHT * rowCount;
+          const [x, y] = getGridPoint(
+            pointerDownState.origin.x - width / 2,
+            pointerDownState.origin.y - height / 2,
+            childEvent[KEYS.CTRL_OR_CMD] ? null : this.getEffectiveGridSize(),
+          );
+          nextGeometry = { x, y, width, height };
+        } else {
+          const width = Math.max(
+            newElement.width,
+            TABLE_MIN_COL_WIDTH * columnCount,
+          );
+          const height = Math.max(
+            newElement.height,
+            TABLE_MIN_ROW_HEIGHT * rowCount,
+          );
+          const { originInGrid } = pointerDownState;
+          nextGeometry = {
+            x:
+              newElement.x < originInGrid.x
+                ? originInGrid.x - width
+                : newElement.x,
+            y:
+              newElement.y < originInGrid.y
+                ? originInGrid.y - height
+                : newElement.y,
+            width,
+            height,
+          };
+        }
+
+        this.scene.mutateElement(newElement, nextGeometry, {
+          informMutation: false,
+          isDragging: false,
+        });
+        this.store.scheduleCapture();
+        this.scene.triggerUpdate();
+
+        if (activeTool.locked) {
+          this.setState((prevState) => ({
+            newElement: null,
+            selectedElementIds: makeNextSelectedElementIds({}, prevState),
+          }));
+          this.cursor.applyForTool();
+          return;
+        }
+
+        this.cursor.reset();
+        this.setState({
+          newElement: null,
+          activeTool: updateActiveTool(this.state, {
+            type: this.state.preferredSelectionTool.type,
+          }),
+          selectedElementIds: makeNextSelectedElementIds(
+            { [newElement.id]: true },
+            this.state,
+          ),
+        });
+        if (isClick) {
+          this.tableCellEditor.open(newElement, 0, 0);
+        }
+        return;
+      }
+
       if (
         activeTool.type !== "selection" &&
         newElement &&
@@ -10173,6 +10310,24 @@ class App extends React.Component<AppProps, AppState> {
           hitElement,
           sceneCoords,
         );
+
+      // A click on a table reopens its Markdown editor. A drag still moves it.
+      if (
+        !this.state.viewModeEnabled &&
+        activeTool.type === this.state.preferredSelectionTool.type &&
+        !pointerDownState.drag.hasOccurred &&
+        !pointerDownState.resize.handleType &&
+        !this.state.isResizing &&
+        !this.state.isRotating &&
+        !childEvent.shiftKey &&
+        !childEvent[KEYS.CTRL_OR_CMD] &&
+        !childEvent.altKey &&
+        isTableElement(hitElement) &&
+        !hitElement.locked
+      ) {
+        this.tableCellEditor.open(hitElement);
+        return;
+      }
 
       if (
         activeTool.type === this.state.preferredSelectionTool.type &&
@@ -11286,6 +11441,10 @@ class App extends React.Component<AppProps, AppState> {
         : [];
 
     return [
+      actionTableInsertRow,
+      actionTableInsertColumn,
+      actionTableDeleteRow,
+      actionTableDeleteColumn,
       CONTEXT_MENU_SEPARATOR,
       actionCut,
       actionCopy,

@@ -7,7 +7,16 @@ import {
   viewportCoordsToSceneCoords,
 } from "@excalidraw/common";
 
-import { isStickyNoteElement, newStickyNoteElement } from "@excalidraw/element";
+import {
+  DEFAULT_TABLE_COL_WIDTH,
+  DEFAULT_TABLE_COLS,
+  DEFAULT_TABLE_ROW_HEIGHT,
+  DEFAULT_TABLE_ROWS,
+  isStickyNoteElement,
+  isTableElement,
+  newStickyNoteElement,
+  newTableElement,
+} from "@excalidraw/element";
 
 import type {
   ExcalidrawNonSelectionElement,
@@ -74,6 +83,34 @@ export const DRAGGABLE_TOOLS: Partial<Record<ToolType, DraggableTool>> = {
           sceneY: element.y + element.height / 2,
           container: element,
         });
+      }
+    },
+  },
+  table: {
+    createElement: (app, center) => {
+      const width = DEFAULT_TABLE_COL_WIDTH * DEFAULT_TABLE_COLS;
+      const height = DEFAULT_TABLE_ROW_HEIGHT * DEFAULT_TABLE_ROWS;
+      const { state } = app;
+      return newTableElement({
+        type: "table",
+        ...centered(center, width, height),
+        fontSize: state.currentItemFontSize,
+        fontFamily: state.currentItemFontFamily,
+        strokeColor: state.currentItemStrokeColor,
+        backgroundColor: state.currentItemBackgroundColor,
+        fillStyle: state.currentItemFillStyle,
+        strokeWidth: app.getCurrentItemStrokeWidth("table"),
+        strokeStyle: state.currentItemStrokeStyle,
+        roughness: state.currentItemRoughness,
+        opacity: state.currentItemOpacity,
+        roundness: null,
+        locked: false,
+        frameId: app.getTopLayerFrameAtSceneCoords(center)?.id ?? null,
+      });
+    },
+    onDrop: (app, element) => {
+      if (isTableElement(element)) {
+        app.tableCellEditor.open(element, 0, 0);
       }
     },
   },
